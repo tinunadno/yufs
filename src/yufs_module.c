@@ -1,4 +1,3 @@
-// kernel module stuff
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -9,18 +8,19 @@
 #include "yufs_core.h"
 
 MODULE_LICENSE("GPL");
-
 MODULE_AUTHOR("Yura");
-
 MODULE_DESCRIPTION("YUFS - yuras simple Filesystem module");
 
 #define YUFS_MAGIC 0x13131313
 
-
 static const struct inode_operations yufs_dir_inode_ops;
+static const struct inode_operations yufs_file_inode_ops;
 static const struct file_operations yufs_dir_operations;
 static const struct file_operations yufs_file_operations;
-static const struct inode_operations yufs_file_inode_ops = {};
+
+static int yufs_fsync(struct file *file, loff_t start, loff_t end, int datasync) {
+    return 0;
+}
 
 static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_stat *stat) {
     struct inode *inode = new_inode(sb);
@@ -29,14 +29,8 @@ static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_st
     inode->i_ino = stat->id;
     inode->i_mode = stat->mode;
     inode->i_sb = sb;
-
-    if (stat->id == 1000) {
-        inode->i_uid = GLOBAL_ROOT_UID;
-        inode->i_gid = GLOBAL_ROOT_GID;
-    } else {
-        inode->i_uid = current_fsuid();
-        inode->i_gid = current_fsgid();
-    }
+    inode->i_uid = current_fsuid();
+    inode->i_gid = current_fsgid();
 
     inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
 
@@ -116,28 +110,37 @@ struct yufs_dir_ctx_adapter {
     struct dir_context *ctx;
 };
 
-
 static unsigned char yufs_mode_to_dt(umode_t mode) {
-    if (S_ISDIR(mode)) return DT_DIR;  // 4
-    if (S_ISREG(mode)) return DT_REG;  // 8
+    if (S_ISDIR(mode)) return DT_DIR;
+    if (S_ISREG(mode)) return DT_REG;
     return DT_UNKNOWN;
 }
 
 static bool yufs_filldir_callback(void *priv, const char *name, int name_len, uint32_t id, umode_t type) {
     struct yufs_dir_ctx_adapter *adapter = (struct yufs_dir_ctx_adapter *) priv;
     unsigned char dt_type = yufs_mode_to_dt(type);
-    return dir_emit(adapter->ctx, name, name_len, id, dt_type);
+    bool res = dir_emit(adapter->ctx, name, name_len, id, dt_type);
+    if (!res) {
+        printk(KERN_WARNING "YUFS: dir_emit failed for '%s' (id=%u, type=%u). Pos=%lld\n", 
+               name, id, dt_type, adapter->ctx->pos);
+    }
+    
+    return res;
 }
 
 static int yufs_iterate(struct file *filp, struct dir_context *ctx) {
     struct inode *inode = file_inode(filp);
     struct yufs_dir_ctx_adapter adapter = {.ctx = ctx};
 
-    YUFSCore_iterate(inode->i_ino, yufs_filldir_callback, &adapter, ctx->pos);
+    int ret = YUFSCore_iterate(inode->i_ino, yufs_filldir_callback, &adapter, ctx->pos);
+
+    if (ret != 0) {
+        printk(KERN_ERR "YUFS: iterate failed for ino=%lu with error %d\n", inode->i_ino, ret);
+        return -EINVAL;
+    }
 
     return 0;
 }
-
 static struct dentry *yufs_lookup(struct inode *parent_inode, struct dentry *child_dentry, unsigned int flags) {
     struct YUFS_stat stat;
     struct inode *inode = NULL;
@@ -152,9 +155,8 @@ static struct dentry *yufs_lookup(struct inode *parent_inode, struct dentry *chi
     return NULL;
 }
 
-static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir,
-                       struct dentry *dentry, umode_t mode, bool excl)
-{
+static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir, 
+                       struct dentry *dentry, umode_t mode, bool excl) {
     struct YUFS_stat stat;
     int ret = YUFSCore_create(dir->i_ino, dentry->d_name.name, mode | S_IFREG, &stat);
 
@@ -167,15 +169,8 @@ static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir,
     return 0;
 }
 
-// files stored in ram, so we dont really need fsync)
-static int yufs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
-{
-    return 0;
-}
-
-static int yufs_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
-                      struct dentry *dentry, umode_t mode)
-{
+static int yufs_mkdir(struct user_namespace *mnt_userns, struct inode *dir, 
+                      struct dentry *dentry, umode_t mode) {
     struct YUFS_stat stat;
     int ret = YUFSCore_create(dir->i_ino, dentry->d_name.name, mode | S_IFDIR, &stat);
 
@@ -224,6 +219,8 @@ static const struct inode_operations yufs_dir_inode_ops = {
     .rmdir = yufs_rmdir,
 };
 
+static const struct inode_operations yufs_file_inode_ops = {};
+
 static void yufs_put_super(struct super_block *sb) {
     printk(KERN_INFO "YUFS: Superblock destroyed\n");
 }
@@ -237,38 +234,20 @@ static const struct super_operations yufs_super_ops = {
 static int yufs_fill_super(struct super_block *sb, void *data, int silent) {
     struct inode *root_inode;
     struct YUFS_stat root_stat;
-    int ret;
 
-    printk(KERN_INFO "YUFS: debug: fill_super started\n");
-
-    ret = YUFSCore_init();
-    if (ret != 0) {
-        printk(KERN_ERR "YUFS: Core init failed with %d\n", ret);
-        return -ENOMEM;
-    }
+    if (YUFSCore_init() != 0) return -ENOMEM;
 
     sb->s_magic = YUFS_MAGIC;
     sb->s_op = &yufs_super_ops;
 
-    ret = YUFSCore_getattr(1000, &root_stat);
-    if (ret != 0) {
-        printk(KERN_ERR "YUFS: Could not get root attribute (id=0). Error: %d\n", ret);
-        return -EINVAL;
-    }
+    if (YUFSCore_getattr(1000, &root_stat) != 0) return -EINVAL;
 
     root_inode = yufs_get_inode(sb, &root_stat);
-    if (!root_inode) {
-        printk(KERN_ERR "YUFS: yufs_get_inode returned NULL\n");
-        return -ENOMEM;
-    }
+    if (!root_inode) return -ENOMEM;
 
     sb->s_root = d_make_root(root_inode);
-    if (!sb->s_root) {
-        printk(KERN_ERR "YUFS: d_make_root failed\n");
-        return -ENOMEM;
-    }
+    if (!sb->s_root) return -ENOMEM;
 
-    printk(KERN_INFO "YUFS: debug: fill_super success\n");
     return 0;
 }
 
@@ -292,10 +271,7 @@ static struct file_system_type yufs_fs_type = {
 
 static int __init yufs_module_init(void) {
     int ret = register_filesystem(&yufs_fs_type);
-    if (ret != 0) {
-        printk(KERN_ERR "YUFS: Failed to register filesystem\n");
-        return ret;
-    }
+    if (ret != 0) return ret;
     printk(KERN_INFO "YUFS: Module loaded successfully\n");
     return 0;
 }
@@ -306,5 +282,4 @@ static void __exit yufs_module_exit(void) {
 }
 
 module_init(yufs_module_init);
-
 module_exit(yufs_module_exit);
