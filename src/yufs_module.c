@@ -20,6 +20,7 @@ MODULE_DESCRIPTION("YUFS - yuras simple Filesystem module");
 static const struct inode_operations yufs_dir_inode_ops;
 static const struct file_operations yufs_dir_operations;
 static const struct file_operations yufs_file_operations;
+static const struct inode_operations yufs_file_inode_ops = {};
 
 static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_stat *stat) {
     struct inode *inode = new_inode(sb);
@@ -29,6 +30,13 @@ static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_st
     inode->i_mode = stat->mode;
     inode->i_sb = sb;
 
+    if (stat->id == 1000) {
+        inode->i_uid = GLOBAL_ROOT_UID;
+        inode->i_gid = GLOBAL_ROOT_GID;
+    } else {
+        inode->i_uid = current_fsuid();
+        inode->i_gid = current_fsgid();
+    }
 
     inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
 
@@ -37,7 +45,7 @@ static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_st
         inode->i_fop = &yufs_dir_operations;
         set_nlink(inode, 2);
     } else if (S_ISREG(inode->i_mode)) {
-        inode->i_op = NULL;
+        inode->i_op = &yufs_file_inode_ops;
         inode->i_fop = &yufs_file_operations;
         set_nlink(inode, 1);
         inode->i_size = stat->size;
@@ -151,6 +159,12 @@ static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir,
     return 0;
 }
 
+// files stored in ram, so we dont really need fsync)
+static int yufs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
+{
+    return 0;
+}
+
 static int yufs_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
                       struct dentry *dentry, umode_t mode)
 {
@@ -191,6 +205,7 @@ static const struct file_operations yufs_file_operations = {
     .read = yufs_read,
     .write = yufs_write,
     .llseek = generic_file_llseek,
+    .fsync = yufs_fsync,
 };
 
 static const struct inode_operations yufs_dir_inode_ops = {
@@ -214,24 +229,38 @@ static const struct super_operations yufs_super_ops = {
 static int yufs_fill_super(struct super_block *sb, void *data, int silent) {
     struct inode *root_inode;
     struct YUFS_stat root_stat;
+    int ret;
 
-    if (YUFSCore_init() != 0) {
+    printk(KERN_INFO "YUFS: debug: fill_super started\n");
+
+    ret = YUFSCore_init();
+    if (ret != 0) {
+        printk(KERN_ERR "YUFS: Core init failed with %d\n", ret);
         return -ENOMEM;
     }
 
     sb->s_magic = YUFS_MAGIC;
     sb->s_op = &yufs_super_ops;
 
-    if (YUFSCore_getattr(1000, &root_stat) != 0) {
+    ret = YUFSCore_getattr(0, &root_stat);
+    if (ret != 0) {
+        printk(KERN_ERR "YUFS: Could not get root attribute (id=0). Error: %d\n", ret);
         return -EINVAL;
     }
 
     root_inode = yufs_get_inode(sb, &root_stat);
-    if (!root_inode) return -ENOMEM;
+    if (!root_inode) {
+        printk(KERN_ERR "YUFS: yufs_get_inode returned NULL\n");
+        return -ENOMEM;
+    }
 
     sb->s_root = d_make_root(root_inode);
-    if (!sb->s_root) return -ENOMEM;
+    if (!sb->s_root) {
+        printk(KERN_ERR "YUFS: d_make_root failed\n");
+        return -ENOMEM;
+    }
 
+    printk(KERN_INFO "YUFS: debug: fill_super success\n");
     return 0;
 }
 

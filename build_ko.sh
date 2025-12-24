@@ -3,3 +3,5 @@ cmake -DKERNEL_BUILD=ON ..
 make
 cp ../src/yufs.ko ..
 make yufs_clean
+cd ../
+rm -r build_ko
