@@ -250,7 +250,7 @@ static int yufs_fill_super(struct super_block *sb, void *data, int silent) {
     sb->s_magic = YUFS_MAGIC;
     sb->s_op = &yufs_super_ops;
 
-    ret = YUFSCore_getattr(0, &root_stat);
+    ret = YUFSCore_getattr(1000, &root_stat);
     if (ret != 0) {
         printk(KERN_ERR "YUFS: Could not get root attribute (id=0). Error: %d\n", ret);
         return -EINVAL;

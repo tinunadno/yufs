@@ -9,3 +9,5 @@ src/*.d
 src/*.ko
 src/*.order
 src/*.symvers
+yu
+yufs.ko
