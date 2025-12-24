@@ -22,15 +22,15 @@ static int yufs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
     return 0;
 }
 
-static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_stat *stat) {
+static struct inode *yufs_get_inode(struct super_block *sb, const struct YUFS_stat *stat, struct inode *dir) {
     struct inode *inode = new_inode(sb);
     if (!inode) return NULL;
 
     inode->i_ino = stat->id;
-    inode->i_mode = stat->mode;
     inode->i_sb = sb;
-    inode->i_uid = current_fsuid();
-    inode->i_gid = current_fsgid();
+
+    inode->i_mode = stat->mode;
+    inode_init_owner(sb->s_user_ns, inode, dir, stat->mode);
 
     inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
 
@@ -119,12 +119,15 @@ static unsigned char yufs_mode_to_dt(umode_t mode) {
 static bool yufs_filldir_callback(void *priv, const char *name, int name_len, uint32_t id, umode_t type) {
     struct yufs_dir_ctx_adapter *adapter = (struct yufs_dir_ctx_adapter *) priv;
     unsigned char dt_type = yufs_mode_to_dt(type);
+
     bool res = dir_emit(adapter->ctx, name, name_len, id, dt_type);
-    if (!res) {
-        printk(KERN_WARNING "YUFS: dir_emit failed for '%s' (id=%u, type=%u). Pos=%lld\n", 
-               name, id, dt_type, adapter->ctx->pos);
+
+    if (res) {
+        adapter->ctx->pos++;
+    } else {
+        // printk(KERN_WARNING "YUFS: dir_emit failed...");
     }
-    
+
     return res;
 }
 
@@ -141,46 +144,54 @@ static int yufs_iterate(struct file *filp, struct dir_context *ctx) {
 
     return 0;
 }
+
 static struct dentry *yufs_lookup(struct inode *parent_inode, struct dentry *child_dentry, unsigned int flags) {
     struct YUFS_stat stat;
     struct inode *inode = NULL;
-
     int ret = YUFSCore_lookup(parent_inode->i_ino, child_dentry->d_name.name, &stat);
-
     if (ret == 0) {
-        inode = yufs_get_inode(parent_inode->i_sb, &stat);
+        inode = yufs_get_inode(parent_inode->i_sb, &stat, parent_inode);
+        if (!inode) return ERR_PTR(-ENOMEM);
     }
-
-    d_add(child_dentry, inode);
-    return NULL;
+    return d_splice_alias(inode, child_dentry);
 }
 
-static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir, 
+static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir,
                        struct dentry *dentry, umode_t mode, bool excl) {
     struct YUFS_stat stat;
     int ret = YUFSCore_create(dir->i_ino, dentry->d_name.name, mode | S_IFREG, &stat);
 
     if (ret != 0) return -ENOSPC;
 
-    struct inode *inode = yufs_get_inode(dir->i_sb, &stat);
+    struct inode *inode = yufs_get_inode(dir->i_sb, &stat, dir);
     if (!inode) return -ENOMEM;
 
-    d_add(dentry, inode);
+    d_instantiate(dentry, inode);
     return 0;
 }
 
-static int yufs_mkdir(struct user_namespace *mnt_userns, struct inode *dir, 
+static int yufs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry) {
+    struct inode *inode = d_inode(old_dentry);
+    int ret = YUFSCore_link(inode->i_ino, dir->i_ino, dentry->d_name.name);
+    if (ret != 0) return -ENOSPC;
+    inc_nlink(inode);
+    ihold(inode);
+    d_instantiate(dentry, inode);
+    return 0;
+}
+
+static int yufs_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
                       struct dentry *dentry, umode_t mode) {
     struct YUFS_stat stat;
     int ret = YUFSCore_create(dir->i_ino, dentry->d_name.name, mode | S_IFDIR, &stat);
 
     if (ret != 0) return -ENOSPC;
 
-    struct inode *inode = yufs_get_inode(dir->i_sb, &stat);
+    struct inode *inode = yufs_get_inode(dir->i_sb, &stat, dir);
     if (!inode) return -ENOMEM;
 
     inc_nlink(dir);
-    d_add(dentry, inode);
+    d_instantiate(dentry, inode);
     return 0;
 }
 
@@ -217,6 +228,7 @@ static const struct inode_operations yufs_dir_inode_ops = {
     .mkdir = yufs_mkdir,
     .unlink = yufs_unlink,
     .rmdir = yufs_rmdir,
+    .link = yufs_link,
 };
 
 static const struct inode_operations yufs_file_inode_ops = {};
@@ -242,7 +254,7 @@ static int yufs_fill_super(struct super_block *sb, void *data, int silent) {
 
     if (YUFSCore_getattr(1000, &root_stat) != 0) return -EINVAL;
 
-    root_inode = yufs_get_inode(sb, &root_stat);
+    root_inode = yufs_get_inode(sb, &root_stat, NULL);
     if (!root_inode) return -ENOMEM;
 
     sb->s_root = d_make_root(root_inode);
@@ -257,8 +269,8 @@ static struct dentry *yufs_mount(struct file_system_type *fs_type,
 }
 
 static void yufs_kill_sb(struct super_block *sb) {
-    YUFSCore_destroy();
     kill_litter_super(sb);
+    YUFSCore_destroy();
 }
 
 static struct file_system_type yufs_fs_type = {

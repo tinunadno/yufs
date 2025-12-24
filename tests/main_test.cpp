@@ -89,12 +89,6 @@ bool test_filldir_callback(void *ctx, const char *name, int name_len, uint32_t i
 }
 
 TEST_F(YufsTest, DirectoryHierarchyAndIteration) {
-    /* Создаем структуру:
-       / (root)
-       ├── folder1
-       │   └── nested.txt
-       └── file_in_root.txt
-    */
 
     struct YUFS_stat s_folder, s_file, s_nested;
 

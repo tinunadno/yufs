@@ -26,6 +26,7 @@ void    YUFSCore_destroy(void);
 int     YUFSCore_lookup(uint32_t parent_id, const char* name, struct YUFS_stat* result);
 int     YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result);
 int     YUFSCore_mkdir(uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result);
+int     YUFSCore_link(uint32_t target_id, uint32_t parent_id, const char* name);
 int     YUFSCore_unlink(uint32_t parent_id, const char* name);
 int     YUFSCore_rmdir(uint32_t parent_id, const char* name);
 int     YUFSCore_getattr(uint32_t id, struct YUFS_stat* result);
