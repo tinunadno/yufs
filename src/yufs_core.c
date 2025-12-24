@@ -9,10 +9,8 @@ struct YUFS_Inode {
     uint32_t id;
     umode_t mode;
     int nlink;
-
     char* content;
     size_t size;
-
     struct YUFS_Dirent* main_dentry;
 };
 
@@ -20,7 +18,6 @@ struct YUFS_Inode {
 struct YUFS_Dirent {
     char name[MAX_NAME_SIZE];
     uint32_t inode_id;
-
     struct YUFS_Dirent* parent;
     struct YUFS_Dirent* first_child;
     struct YUFS_Dirent* next_sibling;
@@ -39,22 +36,29 @@ static struct YUFS_Inode* allocInode(void) {
             node->id = i;
             node->nlink = 1;
             inodeTable[i] = node;
+            YUFS_LOG_INFO("allocated node with id %d", node->id);
             return node;
         }
     }
+    YUFS_LOG_INFO("failed to allocate node");
     return NULL;
 }
 
 static struct YUFS_Dirent* allocDirent(const char* name, uint32_t inode_id) {
     struct YUFS_Dirent* d = (struct YUFS_Dirent*)YUFS_MALLOC(sizeof(struct YUFS_Dirent));
-    if (!d) return NULL;
+    if (!d) {
+        YUFS_LOG_INFO("failed to allocate dirent");
+        return NULL;
+    }
     YUFS_MEMSET(d, 0, sizeof(struct YUFS_Dirent));
     YUFS_STRCPY(d->name, name);
     d->inode_id = inode_id;
+    YUFS_LOG_INFO("allocated dirent for node with id %d", inode_id);
     return d;
 }
 
 static void freeInode(struct YUFS_Inode* node) {
+    YUFS_LOG_INFO("freed node with id %d", node->id);
     if (node->content) YUFS_FREE(node->content);
     inodeTable[node->id] = NULL;
     YUFS_FREE(node);
@@ -124,6 +128,7 @@ int YUFSCore_lookup(uint32_t parent_id, const char* name, struct YUFS_stat* resu
     result->id = inode->id;
     result->mode = inode->mode;
     result->size = inode->size;
+    YUFS_LOG_INFO("lookup for parent id %d and name %s succeed", parent_id, name);
     return 0;
 }
 
@@ -157,6 +162,7 @@ int YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct Y
         result->mode = newInode->mode;
         result->size = newInode->size;
     }
+    YUFS_LOG_INFO("created new one in %d with name %s", parent_id, name);
     return 0;
 }
 
@@ -177,7 +183,7 @@ int YUFSCore_link(uint32_t target_id, uint32_t parent_id, const char* name) {
     attach_dentry(parentInode->main_dentry, newDirent);
 
     targetInode->nlink++;
-
+    YUFS_LOG_INFO("created new hardlink in %d with name %s on %d", parent_id, name, target_id);
     return 0;
 }
 
@@ -204,7 +210,7 @@ int YUFSCore_unlink(uint32_t parent_id, const char* name) {
     if (targetInode->nlink <= 0) {
         freeInode(targetInode);
     }
-
+    YUFS_LOG_INFO("removed from %d with name %s", parent_id, name);
     return 0;
 }
 
@@ -225,6 +231,7 @@ int YUFSCore_rmdir(uint32_t parent_id, const char* name) {
 
     YUFS_FREE(targetDirent);
     freeInode(targetInode);
+    YUFS_LOG_INFO("removed dir in %d with name %s", parent_id, name);
     return 0;
 }
 
@@ -237,6 +244,7 @@ int YUFSCore_read(uint32_t id, char *buf, size_t size, loff_t offset) {
     size_t available = node->size - offset;
     size_t to_read = (size < available) ? size : available;
     YUFS_MEMMOVE(buf, node->content + offset, to_read);
+    YUFS_LOG_INFO("read from %d", id);
     return (int)to_read;
 }
 
@@ -254,6 +262,7 @@ int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset) {
         node->size = new_end;
     }
     YUFS_MEMMOVE(node->content + offset, buf, size);
+    YUFS_LOG_INFO("write to %d", id);
     return (int)size;
 }
 
