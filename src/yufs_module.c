@@ -117,9 +117,16 @@ struct yufs_dir_ctx_adapter {
 };
 
 
+static unsigned char yufs_mode_to_dt(umode_t mode) {
+    if (S_ISDIR(mode)) return DT_DIR;  // 4
+    if (S_ISREG(mode)) return DT_REG;  // 8
+    return DT_UNKNOWN;
+}
+
 static bool yufs_filldir_callback(void *priv, const char *name, int name_len, uint32_t id, umode_t type) {
     struct yufs_dir_ctx_adapter *adapter = (struct yufs_dir_ctx_adapter *) priv;
-    return dir_emit(adapter->ctx, name, name_len, id, type);
+    unsigned char dt_type = yufs_mode_to_dt(type);
+    return dir_emit(adapter->ctx, name, name_len, id, dt_type);
 }
 
 static int yufs_iterate(struct file *filp, struct dir_context *ctx) {
