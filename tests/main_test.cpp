@@ -105,7 +105,7 @@ TEST_F(YufsTest, DirectoryHierarchyAndIteration) {
 
 
     std::vector<std::string> root_content;
-    YUFSCore_iterate(ROOT_ID, test_filldir_callback, &root_content);
+    YUFSCore_iterate(ROOT_ID, test_filldir_callback, &root_content, 0);
 
 
     EXPECT_GE(root_content.size(), 4);
@@ -114,7 +114,7 @@ TEST_F(YufsTest, DirectoryHierarchyAndIteration) {
 
 
     std::vector<std::string> folder_content;
-    YUFSCore_iterate(s_folder.id, test_filldir_callback, &folder_content);
+    YUFSCore_iterate(s_folder.id, test_filldir_callback, &folder_content, 0);
 
 
     EXPECT_GE(folder_content.size(), 3);

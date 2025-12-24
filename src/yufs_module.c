@@ -126,7 +126,8 @@ static int yufs_iterate(struct file *filp, struct dir_context *ctx) {
     struct inode *inode = file_inode(filp);
     struct yufs_dir_ctx_adapter adapter = {.ctx = ctx};
 
-    YUFSCore_iterate(inode->i_ino, yufs_filldir_callback, &adapter);
+    YUFSCore_iterate(inode->i_ino, yufs_filldir_callback, &adapter, ctx->pos);
+
     return 0;
 }
 

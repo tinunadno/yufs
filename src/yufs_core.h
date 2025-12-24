@@ -31,6 +31,6 @@ int     YUFSCore_rmdir(uint32_t parent_id, const char* name);
 int     YUFSCore_getattr(uint32_t id, struct YUFS_stat* result);
 int     YUFSCore_read(uint32_t id, char *buf, size_t size, loff_t offset);
 int     YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset);
-int     YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx);
+int     YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset);
 
 #endif //YUFS_YUFSCore_H

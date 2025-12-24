@@ -296,25 +296,33 @@ int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset)
 
 
 
-int YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx) 
+int YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset)
 {
     if (id >= MAX_FILES || !inodeTable[id]) return -1;
     struct YUFS_direntNode* dir = inodeTable[id];
 
     if (!S_ISDIR(dir->mode)) return -1;
 
-    
-    
-    
-    if (!callback(ctx, ".", 1, dir->id, dir->mode)) return 0;
-    if (!callback(ctx, "..", 2, dir->parent->id, dir->parent->mode)) return 0;
+    if (offset == 0) {
+        if (!callback(ctx, ".", 1, dir->id, dir->mode)) return 0;
+        offset++;
+    }
 
+    if (offset == 1) {
+        if (!callback(ctx, "..", 2, dir->parent->id, dir->parent->mode)) return 0;
+        offset++;
+    }
     struct YUFS_direntNode* child = dir->first_child;
+    loff_t skip_count = (offset > 2) ? (offset - 2) : 0;
+
+    while (child && skip_count > 0) {
+        child = child->next_sibling;
+        skip_count--;
+    }
+
     while (child) {
-        
-        
         if (!callback(ctx, child->name, YUFS_STRLEN(child->name), child->id, child->mode)) {
-            break;
+            return 0;
         }
         child = child->next_sibling;
     }
