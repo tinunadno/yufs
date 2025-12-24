@@ -2,3 +2,10 @@ cmake-build-debug
 build_ko
 .cache
 .idea
+src/*.cmd
+src/*.o
+src/*.mod
+src/*.d
+src/*.ko
+src/*.order
+src/*.symvers

@@ -7,6 +7,7 @@
 #include <linux/string.h>
 #include <linux/printk.h>
 #include <linux/types.h>
+#include <linux/stat.h>
 
 #define YUFS_MALLOC(sz) kmalloc(sz, GFP_KERNEL)
 #define YUFS_FREE(ptr) kfree(ptr)
@@ -25,6 +26,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <malloc.h>
+#include <stdbool.h>
 
 typedef uint32_t umode_t;
 

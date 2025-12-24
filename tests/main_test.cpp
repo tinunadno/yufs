@@ -82,7 +82,7 @@ TEST_F(YufsTest, ReadWriteFile) {
 }
 
 
-int test_filldir_callback(void *ctx, const char *name, int name_len, uint32_t id, umode_t type) {
+bool test_filldir_callback(void *ctx, const char *name, int name_len, uint32_t id, umode_t type) {
     auto *vec = static_cast<std::vector<std::string> *>(ctx);
     vec->push_back(std::string(name));
     return true;

@@ -162,7 +162,6 @@ int YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct Y
 
 int YUFSCore_mkdir(uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result)
 {
-    
     return YUFSCore_create(parent_id, name, mode | S_IFDIR, result);
 }
 
