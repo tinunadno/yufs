@@ -11,6 +11,10 @@
 #define YUFS_MALLOC(sz) kmalloc(sz, GFP_KERNEL)
 #define YUFS_FREE(ptr) kfree(ptr)
 #define YUFS_MEMMOVE memmove
+#define YUFS_MEMSET memset
+#define YUFS_STRCMP strcmp
+#define YUFS_STRLEN strlen
+#define YUFS_STRCPY strcpy
 #define YUFS_LOG_INFO_IMPL(fmt, ...) printk(KERN_INFO "YUFS: " fmt, ##__VA_ARGS__)
 #define YUFS_LOG_ERR_IMPL(fmt, ...) printk(KERN_ERR "YUFS: " fmt, ##__VA_ARGS__)
 
@@ -24,11 +28,35 @@
 
 typedef uint32_t umode_t;
 
-#define YUFS_MALLOC(sz) malloc(sz, GFP_KERNEL)
+#define YUFS_MALLOC(sz) malloc(sz)
 #define YUFS_FREE(ptr) free(ptr)
 #define YUFS_MEMMOVE memmove
+#define YUFS_MEMSET memset
+#define YUFS_STRCMP strcmp
+#define YUFS_STRLEN strlen
+#define YUFS_STRCPY strcpy
 #define YUFS_LOG_INFO_IMPL(fmt, ...) printf("[INFO] YUFS: " fmt, ##__VA_ARGS__)
 #define YUFS_LOG_ERR_IMPL(fmt, ...) printf("[ERR] YUFS: " fmt, ##__VA_ARGS__)
+
+#ifndef S_IFMT
+#define S_IFMT  00170000
+#endif
+
+#ifndef S_IFDIR
+#define S_IFDIR 00040000
+#endif
+
+#ifndef S_IFREG
+#define S_IFREG 00100000
+#endif
+
+#ifndef S_IRWXUGO
+#define S_IRWXUGO 0777
+#endif
+
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
 
 #endif
 
