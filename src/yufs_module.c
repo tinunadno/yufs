@@ -153,7 +153,7 @@ static struct dentry *yufs_lookup(struct inode *parent_inode, struct dentry *chi
         inode = yufs_get_inode(parent_inode->i_sb, &stat, parent_inode);
         if (!inode) return ERR_PTR(-ENOMEM);
     }
-    return d_splice_alias(inode, child_dentry);
+    return d_add(child_dentry, inode);
 }
 
 static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir,
@@ -269,7 +269,7 @@ static struct dentry *yufs_mount(struct file_system_type *fs_type,
 }
 
 static void yufs_kill_sb(struct super_block *sb) {
-    kill_litter_super(sb);
+    kill_anon_super(sb);
     YUFSCore_destroy();
 }
 
