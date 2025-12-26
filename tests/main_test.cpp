@@ -7,7 +7,7 @@ extern "C" {
 #include "yufs_core.h"
 }
 
-const uint32_t ROOT_ID = 0;
+const uint32_t ROOT_ID = 1000;
 
 class YufsTest : public ::testing::Test {
 protected:
@@ -93,9 +93,9 @@ TEST_F(YufsTest, DirectoryHierarchyAndIteration) {
     struct YUFS_stat s_folder, s_file, s_nested;
 
 
-    ASSERT_EQ(YUFSCore_mkdir(ROOT_ID, "folder1", 0755, &s_folder), 0);
-    ASSERT_EQ(YUFSCore_create(ROOT_ID, "file_in_root.txt", 0644, &s_file), 0);
-    ASSERT_EQ(YUFSCore_create(s_folder.id, "nested.txt", 0644, &s_nested), 0);
+    ASSERT_EQ(YUFSCore_create(ROOT_ID, "folder1", 0755 | S_IFDIR, &s_folder), 0);
+    ASSERT_EQ(YUFSCore_create(ROOT_ID, "file_in_root.txt", 0644 | S_IFREG, &s_file), 0);
+    ASSERT_EQ(YUFSCore_create(s_folder.id, "nested.txt", 0644 | S_IFREG, &s_nested), 0);
 
 
     std::vector<std::string> root_content;
@@ -123,8 +123,8 @@ TEST_F(YufsTest, DirectoryHierarchyAndIteration) {
 
 TEST_F(YufsTest, DeleteLogic) {
     struct YUFS_stat s_dir, s_file;
-    YUFSCore_mkdir(ROOT_ID, "mydir", 0755, &s_dir);
-    YUFSCore_create(s_dir.id, "file.txt", 0644, &s_file);
+    YUFSCore_create(ROOT_ID, "mydir", 0755 | S_IFDIR, &s_dir);
+    YUFSCore_create(s_dir.id, "file.txt", 0644 | S_IFREG, &s_file);
 
 
     int res = YUFSCore_rmdir(ROOT_ID, "mydir");

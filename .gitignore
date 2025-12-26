@@ -11,3 +11,5 @@ src/*.order
 src/*.symvers
 yu
 yufs.ko
+.venv
+backend/yufs.db

@@ -1,5 +1,17 @@
 #include "yufs_core.h"
 
+#ifndef __RAM_VERSION__
+#ifndef __WEB_VERSION__
+#error "you have to define __WEB_VERSION__ or __RAM_VERSION__, now none of them are defined!"
+#endif
+#endif
+
+#ifdef __RAM_VERSION__
+#ifdef __WEB_VERSION__
+#error "you can't build yufs with __WEB_VERSION__ and __RAM_VERSION__ both! remove one of them"
+#endif
+#endif
+
 #ifdef __RAM_VERSION__
 
 #define MAX_FILES 1024
@@ -302,6 +314,175 @@ int YUFSCore_getattr(uint32_t id, struct YUFS_stat* result) {
     result->id = node->id;
     result->size = node->size;
     result->mode = node->mode;
+    return 0;
+}
+
+#endif
+
+#ifdef __WEB_VERSION__
+
+#include "http.h"
+
+#define TO_STR(buf, val, fmt) char buf[24]; snprintf(buf, sizeof(buf), fmt, val)
+
+struct YUFS_packed_dirent {
+    uint32_t id;
+    char name[256];
+    uint32_t type;
+} __attribute__((packed));
+
+
+int YUFSCore_init(void) {
+    return 0;
+}
+
+void YUFSCore_destroy(void) {
+}
+
+int YUFSCore_lookup(uint32_t parent_id, const char* name, struct YUFS_stat* result) {
+    TO_STR(pid_str, parent_id, "%u");
+
+    int64_t ret = vtfs_http_call("", "lookup", (char*)result, sizeof(struct YUFS_stat),
+                                 2,
+                                 "parent_id", pid_str,
+                                 "name", name);
+
+    return (int)ret;
+}
+
+int YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result) {
+    TO_STR(pid_str, parent_id, "%u");
+    TO_STR(mode_str, mode, "%u");
+
+    struct YUFS_stat temp_stat;
+
+    int64_t ret = vtfs_http_call("", "create", (char*)&temp_stat, sizeof(struct YUFS_stat),
+                                 3,
+                                 "parent_id", pid_str,
+                                 "name", name,
+                                 "mode", mode_str);
+
+    if (ret == 0 && result) {
+        *result = temp_stat;
+    }
+    return (int)ret;
+}
+
+int YUFSCore_link(uint32_t target_id, uint32_t parent_id, const char* name) {
+    TO_STR(tid_str, target_id, "%u");
+    TO_STR(pid_str, parent_id, "%u");
+
+    int64_t ret = vtfs_http_call("", "link", NULL, 0,
+                                 3,
+                                 "target_id", tid_str,
+                                 "parent_id", pid_str,
+                                 "name", name);
+    return (int)ret;
+}
+
+int YUFSCore_unlink(uint32_t parent_id, const char* name) {
+    TO_STR(pid_str, parent_id, "%u");
+
+    int64_t ret = vtfs_http_call("", "unlink", NULL, 0,
+                                 2,
+                                 "parent_id", pid_str,
+                                 "name", name);
+    return (int)ret;
+}
+
+int YUFSCore_rmdir(uint32_t parent_id, const char* name) {
+    TO_STR(pid_str, parent_id, "%u");
+
+    int64_t ret = vtfs_http_call("", "rmdir", NULL, 0,
+                                 2,
+                                 "parent_id", pid_str,
+                                 "name", name);
+    return (int)ret;
+}
+
+int YUFSCore_getattr(uint32_t id, struct YUFS_stat* result) {
+    TO_STR(id_str, id, "%u");
+
+    int64_t ret = vtfs_http_call("", "getattr", (char*)result, sizeof(struct YUFS_stat),
+                                 1,
+                                 "id", id_str);
+    return (int)ret;
+}
+
+int YUFSCore_read(uint32_t id, char *buf, size_t size, loff_t offset) {
+    TO_STR(id_str, id, "%u");
+    TO_STR(sz_str, size, "%lu");
+    TO_STR(off_str, offset, "%lld");
+
+    int64_t ret = vtfs_http_call("", "read", buf, size,
+                                 3,
+                                 "id", id_str,
+                                 "size", sz_str,
+                                 "offset", off_str);
+
+    return (int)ret;
+}
+
+int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset) {
+    TO_STR(id_str, id, "%u");
+    TO_STR(off_str, offset, "%lld");
+
+    size_t encoded_size = size * 3 + 1;
+    char *encoded_buf = YUFS_MALLOC(encoded_size);
+    if (!encoded_buf) return -12;
+
+    char *dst = encoded_buf;
+    const char *src = buf;
+    size_t i;
+    const char *hex = "0123456789ABCDEF";
+
+    for (i = 0; i < size; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+            *dst++ = c;
+        } else {
+            *dst++ = '%';
+            *dst++ = hex[c >> 4];
+            *dst++ = hex[c & 0x0F];
+        }
+    }
+    *dst = '\0';
+
+    int64_t ret = vtfs_http_call("", "write", NULL, 0,
+                                 3,
+                                 "id", id_str,
+                                 "offset", off_str,
+                                 "buf", encoded_buf);
+
+    YUFS_FREE(encoded_buf);
+    return (int)ret;
+}
+
+int YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset) {
+    TO_STR(id_str, id, "%u");
+
+    struct YUFS_packed_dirent dentry;
+    int current_offset = offset;
+
+    while (1) {
+        TO_STR(off_str, current_offset, "%d");
+
+        int64_t ret = vtfs_http_call("", "iterate", (char*)&dentry, sizeof(dentry),
+                                     2,
+                                     "id", id_str,
+                                     "offset", off_str);
+
+        if (ret != 0) {
+            break;
+        }
+
+        if (!callback(ctx, dentry.name, strlen(dentry.name), dentry.id, dentry.type)) {
+            return 0;
+        }
+
+        current_offset++;
+    }
+
     return 0;
 }
 

@@ -13,9 +13,11 @@ add_compile_definitions(ENABLE_LOG)
 
 set(CORE_SRC
         "${CMAKE_CURRENT_SOURCE_DIR}/src/yufs_core.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/http.c"
 )
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+add_compile_definitions(__WEB_VERSION__)
 
 if(KERNEL_BUILD)
     # kernel build
@@ -37,7 +39,6 @@ if(KERNEL_BUILD)
             WORKING_DIRECTORY ${MODULE_SOURCE_DIR}
     )
 else()
-    add_compile_definitions(__RAM_VERSION__)
     # build tests
     message(STATUS "Configuring for USERSPACE tests (Google Test)...")
 
