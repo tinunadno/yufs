@@ -153,7 +153,8 @@ static struct dentry *yufs_lookup(struct inode *parent_inode, struct dentry *chi
         inode = yufs_get_inode(parent_inode->i_sb, &stat, parent_inode);
         if (!inode) return ERR_PTR(-ENOMEM);
     }
-    return d_add(child_dentry, inode);
+    d_add(child_dentry, inode);
+    return NULL;
 }
 
 static int yufs_create(struct user_namespace *mnt_userns, struct inode *dir,
