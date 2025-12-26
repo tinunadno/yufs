@@ -37,8 +37,8 @@ typedef uint32_t umode_t;
 #define YUFS_STRCMP strcmp
 #define YUFS_STRLEN strlen
 #define YUFS_STRCPY strcpy
-#define YUFS_LOG_INFO_IMPL(fmt, ...) printf("[INFO] YUFS: " fmt, ##__VA_ARGS__)
-#define YUFS_LOG_ERR_IMPL(fmt, ...) printf("[ERR] YUFS: " fmt, ##__VA_ARGS__)
+#define YUFS_LOG_INFO_IMPL(fmt, ...) printf("[INFO] YUFS: " fmt "\n", ##__VA_ARGS__)
+#define YUFS_LOG_ERR_IMPL(fmt, ...) printf("[ERR] YUFS: " fmt "\n", ##__VA_ARGS__)
 
 #ifndef S_IFMT
 #define S_IFMT  00170000
