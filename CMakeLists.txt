@@ -17,7 +17,7 @@ set(CORE_SRC
 )
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
-add_compile_definitions(__WEB_VERSION__)
+add_compile_definitions(__RAM_VERSION__)
 
 if(KERNEL_BUILD)
     # kernel build

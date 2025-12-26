@@ -125,7 +125,7 @@ static struct YUFS_Dirent* find_child(struct YUFS_Dirent* parent, const char* na
     return NULL;
 }
 
-int YUFSCore_lookup(uint32_t parent_id, const char* name, struct YUFS_stat* result) {
+int YUFSCore_lookup(const char*, uint32_t parent_id, const char* name, struct YUFS_stat* result) {
     if (parent_id >= MAX_FILES || !inodeTable[parent_id]) return -1;
     struct YUFS_Inode* parentNode = inodeTable[parent_id];
 
@@ -153,7 +153,7 @@ static void attach_dentry(struct YUFS_Dirent* parent, struct YUFS_Dirent* child)
     parent->first_child = child;
 }
 
-int YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result) {
+int YUFSCore_create(const char*, uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result) {
     if (parent_id >= MAX_FILES || !inodeTable[parent_id]) return -1;
     struct YUFS_Inode* parentInode = inodeTable[parent_id];
     if (!S_ISDIR(parentInode->mode)) return -1;
@@ -178,7 +178,7 @@ int YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct Y
     return 0;
 }
 
-int YUFSCore_link(uint32_t target_id, uint32_t parent_id, const char* name) {
+int YUFSCore_link(const char*, uint32_t target_id, uint32_t parent_id, const char* name) {
 
     if (target_id >= MAX_FILES || !inodeTable[target_id]) return -1;
     if (parent_id >= MAX_FILES || !inodeTable[parent_id]) return -1;
@@ -199,7 +199,7 @@ int YUFSCore_link(uint32_t target_id, uint32_t parent_id, const char* name) {
     return 0;
 }
 
-int YUFSCore_unlink(uint32_t parent_id, const char* name) {
+int YUFSCore_unlink(const char*, uint32_t parent_id, const char* name) {
     if (parent_id >= MAX_FILES || !inodeTable[parent_id]) return -1;
     struct YUFS_Inode* parentInode = inodeTable[parent_id];
 
@@ -226,7 +226,7 @@ int YUFSCore_unlink(uint32_t parent_id, const char* name) {
     return 0;
 }
 
-int YUFSCore_rmdir(uint32_t parent_id, const char* name) {
+int YUFSCore_rmdir(const char*, uint32_t parent_id, const char* name) {
     if (parent_id >= MAX_FILES || !inodeTable[parent_id]) return -1;
     struct YUFS_Inode* parentInode = inodeTable[parent_id];
     struct YUFS_Dirent* targetDirent = find_child(parentInode->main_dentry, name);
@@ -247,7 +247,7 @@ int YUFSCore_rmdir(uint32_t parent_id, const char* name) {
     return 0;
 }
 
-int YUFSCore_read(uint32_t id, char *buf, size_t size, loff_t offset) {
+int YUFSCore_read(const char*, uint32_t id, char *buf, size_t size, loff_t offset) {
     if (id >= MAX_FILES || !inodeTable[id]) return -1;
     struct YUFS_Inode* node = inodeTable[id];
 
@@ -260,7 +260,7 @@ int YUFSCore_read(uint32_t id, char *buf, size_t size, loff_t offset) {
     return (int)to_read;
 }
 
-int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset) {
+int YUFSCore_write(const char*, uint32_t id, const char *buf, size_t size, loff_t offset) {
     if (id >= MAX_FILES || !inodeTable[id]) return -1;
     struct YUFS_Inode* node = inodeTable[id];
     if (S_ISDIR(node->mode)) return -1;
@@ -278,7 +278,7 @@ int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset) {
     return (int)size;
 }
 
-int YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset) {
+int YUFSCore_iterate(const char*, uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset) {
     if (id >= MAX_FILES || !inodeTable[id]) return -1;
     struct YUFS_Inode* inode = inodeTable[id];
     if (!S_ISDIR(inode->mode) || !inode->main_dentry) return -1;
@@ -308,7 +308,7 @@ int YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx, loff_t off
     return 0;
 }
 
-int YUFSCore_getattr(uint32_t id, struct YUFS_stat* result) {
+int YUFSCore_getattr(const char*, uint32_t id, struct YUFS_stat* result) {
     if (id >= MAX_FILES || !inodeTable[id]) return -1;
     struct YUFS_Inode* node = inodeTable[id];
     result->id = node->id;
@@ -333,70 +333,65 @@ struct YUFS_packed_dirent {
 int YUFSCore_init(void) { return 0; }
 void YUFSCore_destroy(void) {}
 
-
-int YUFSCore_lookup(uint32_t parent_id, const char* name, struct YUFS_stat* result) {
+int YUFSCore_lookup(const char* token, uint32_t parent_id, const char* name, struct YUFS_stat* result) {
     TO_STR(pid_str, parent_id, "%u");
-    return (int)vtfs_http_call("", "lookup", (char*)result, sizeof(struct YUFS_stat), 
+    return (int)vtfs_http_call(token, "lookup", (char*)result, sizeof(struct YUFS_stat),
                                  2, "parent_id", pid_str, "name", name);
 }
 
-int YUFSCore_create(uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result) {
+int YUFSCore_create(const char* token, uint32_t parent_id, const char* name, umode_t mode, struct YUFS_stat* result) {
     TO_STR(pid_str, parent_id, "%u");
     TO_STR(mode_str, mode, "%u");
     struct YUFS_stat temp_stat;
-    int64_t ret = vtfs_http_call("", "create", (char*)&temp_stat, sizeof(struct YUFS_stat),
+    int64_t ret = vtfs_http_call(token, "create", (char*)&temp_stat, sizeof(struct YUFS_stat),
                                  3, "parent_id", pid_str, "name", name, "mode", mode_str);
     if (ret == 0 && result) *result = temp_stat;
     return (int)ret;
 }
 
-int YUFSCore_link(uint32_t target_id, uint32_t parent_id, const char* name) {
+int YUFSCore_link(const char* token, uint32_t target_id, uint32_t parent_id, const char* name) {
     TO_STR(tid_str, target_id, "%u");
     TO_STR(pid_str, parent_id, "%u");
-    
     char dummy[64];
-    return (int)vtfs_http_call("", "link", dummy, sizeof(dummy), 3, "target_id", tid_str, "parent_id", pid_str, "name", name);
+    return (int)vtfs_http_call(token, "link", dummy, sizeof(dummy), 3, "target_id", tid_str, "parent_id", pid_str, "name", name);
 }
 
-int YUFSCore_unlink(uint32_t parent_id, const char* name) {
+int YUFSCore_unlink(const char* token, uint32_t parent_id, const char* name) {
     TO_STR(pid_str, parent_id, "%u");
     char dummy[64];
-    return (int)vtfs_http_call("", "unlink", dummy, sizeof(dummy), 2, "parent_id", pid_str, "name", name);
+    return (int)vtfs_http_call(token, "unlink", dummy, sizeof(dummy), 2, "parent_id", pid_str, "name", name);
 }
 
-int YUFSCore_rmdir(uint32_t parent_id, const char* name) {
+int YUFSCore_rmdir(const char* token, uint32_t parent_id, const char* name) {
     TO_STR(pid_str, parent_id, "%u");
     char dummy[64];
-    return (int)vtfs_http_call("", "rmdir", dummy, sizeof(dummy), 2, "parent_id", pid_str, "name", name);
+    return (int)vtfs_http_call(token, "rmdir", dummy, sizeof(dummy), 2, "parent_id", pid_str, "name", name);
 }
 
-int YUFSCore_getattr(uint32_t id, struct YUFS_stat* result) {
+int YUFSCore_getattr(const char* token, uint32_t id, struct YUFS_stat* result) {
     TO_STR(id_str, id, "%u");
-    return (int)vtfs_http_call("", "getattr", (char*)result, sizeof(struct YUFS_stat), 1, "id", id_str);
+    return (int)vtfs_http_call(token, "getattr", (char*)result, sizeof(struct YUFS_stat), 1, "id", id_str);
 }
 
-int YUFSCore_read(uint32_t id, char *buf, size_t size, loff_t offset) {
+int YUFSCore_read(const char* token, uint32_t id, char *buf, size_t size, loff_t offset) {
     TO_STR(id_str, id, "%u");
     TO_STR(sz_str, size, "%lu");
     TO_STR(off_str, offset, "%lld");
-    
+
     char *kbuf = kmalloc(size, GFP_KERNEL);
     if (!kbuf) return -ENOMEM;
 
-    int64_t ret = vtfs_http_call("", "read", kbuf, size,
+    int64_t ret = vtfs_http_call(token, "read", kbuf, size,
                                  3, "id", id_str, "size", sz_str, "offset", off_str);
-    
-    if (ret > 0) {
-        memcpy(buf, kbuf, ret); 
-    }
+    if (ret > 0) memcpy(buf, kbuf, ret);
     kfree(kbuf);
     return (int)ret;
 }
 
-int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset) {
+int YUFSCore_write(const char* token, uint32_t id, const char *buf, size_t size, loff_t offset) {
     TO_STR(id_str, id, "%u");
     TO_STR(off_str, offset, "%lld");
-    
+
     char *encoded_buf = kmalloc(size * 3 + 1, GFP_KERNEL);
     if (!encoded_buf) return -ENOMEM;
 
@@ -415,31 +410,25 @@ int YUFSCore_write(uint32_t id, const char *buf, size_t size, loff_t offset) {
     *dst = '\0';
 
     char dummy[64];
-    int64_t ret = vtfs_http_call("", "write", dummy, sizeof(dummy),
+    int64_t ret = vtfs_http_call(token, "write", dummy, sizeof(dummy),
                                  3, "id", id_str, "offset", off_str, "buf", encoded_buf);
 
     kfree(encoded_buf);
     return (int)ret;
 }
 
-int YUFSCore_iterate(uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset) {
+int YUFSCore_iterate(const char* token, uint32_t id, yufs_filldir_y callback, void* ctx, loff_t offset) {
     TO_STR(id_str, id, "%u");
     struct YUFS_packed_dirent dentry;
     int current_offset = offset;
 
     while (1) {
         TO_STR(off_str, current_offset, "%d");
-        
-        int64_t ret = vtfs_http_call("", "iterate", (char*)&dentry, sizeof(dentry),
+        int64_t ret = vtfs_http_call(token, "iterate", (char*)&dentry, sizeof(dentry),
                                      2, "id", id_str, "offset", off_str);
-
-        if (ret != 0) break; 
-
-        
+        if (ret != 0) break;
         size_t name_len = strnlen(dentry.name, sizeof(dentry.name));
-        if (!callback(ctx, dentry.name, name_len, dentry.id, dentry.type)) {
-            return 0;
-        }
+        if (!callback(ctx, dentry.name, name_len, dentry.id, dentry.type)) return 0;
         current_offset++;
     }
     return 0;
